@@ -1,0 +1,23 @@
+services:
+  whisper:
+    build:
+      context: ./whisper.cpp
+      dockerfile: ../docker/whisper.Dockerfile
+    command: ["-m", "/models/${WHISPER_MODEL:-ggml-base.en.bin}"]
+    ports:
+      - "${WHISPER_PORT:-8080}:8080"
+    volumes:
+      - ./whisper.cpp/models:/models:ro
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./men-g2-ble-gateway
+      dockerfile: ../docker/gateway.Dockerfile
+    ports:
+      - "${GATEWAY_PORT:-8765}:8765"
+    volumes:
+      - ./men-g2-ble-gateway/config:/app/config
+      # Host BlueZ over D-Bus. Only functional on a Linux host.
+      - /var/run/dbus:/var/run/dbus
+    restart: unless-stopped

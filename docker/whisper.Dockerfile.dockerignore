@@ -1,0 +1,10 @@
+.git
+.github
+.devops
+.venv
+build*/
+SDL2-*/
+models/*.bin
+samples
+tests
+raw.jsonl
