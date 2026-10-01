@@ -1,0 +1,13 @@
+# macOS host, Docker Desktop. Its VM has no access to the Mac's audio or
+# Bluetooth hardware.
+#
+# Microphone: run PulseAudio on the Mac with TCP enabled and the container
+# connects to it:
+#   brew install pulseaudio
+#   pulseaudio --load="module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1" --exit-idle-time=-1 --daemon
+#
+# Bluetooth: not possible from a container on macOS; run the gateway natively.
+services:
+  stream:
+    environment:
+      PULSE_SERVER: tcp:host.docker.internal:4713

@@ -1,0 +1,39 @@
+# NVIDIA GPU variant of the whisper services. The Makefile adds this file
+# when GPU=1, after the platform override.
+#
+# Host requirements: an NVIDIA driver, plus
+#   Windows: Docker Desktop with the WSL 2 backend (GPU support is built in)
+#   Linux:   nvidia-container-toolkit
+# The CUDA 13 images need a driver that supports CUDA 13 (R580 or newer).
+#
+# CUDA_ARCH is the list of compute capabilities to compile for. The Makefile
+# sets it from nvidia-smi, so the image is built for this machine's GPU.
+x-gpu-build: &gpu-build
+  args:
+    BUILD_IMAGE: nvidia/cuda:13.0.0-devel-ubuntu22.04
+    RUNTIME_IMAGE: nvidia/cuda:13.0.0-runtime-ubuntu22.04
+    GGML_CUDA: "ON"
+    CUDA_ARCH: ${CUDA_ARCH:-75;80;86;89;90;120}
+    # One nvcc job per core ran a 32 GB Docker VM out of memory.
+    BUILD_JOBS: ${BUILD_JOBS:-6}
+
+x-gpu-device: &gpu-device
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+
+services:
+  whisper:
+    image: eveng2mount/whisper-cuda
+    build: *gpu-build
+    deploy: *gpu-device
+
+  stream:
+    image: eveng2mount/whisper-cuda
+    build: *gpu-build
+    deploy: *gpu-device
+    environment:
+      STREAM_GPU: "1"

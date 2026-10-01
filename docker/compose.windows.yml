@@ -1,0 +1,23 @@
+# Windows host, Docker Desktop with the WSL 2 backend.
+#
+# Docker Desktop exposes the WSL VM's shared mounts under /run/desktop/mnt/host:
+#   .../wslg  WSLg, including its PulseAudio server. WSLg bridges the Windows
+#             default microphone in as the source "RDPSource".
+#   .../wsl   /mnt/wsl, a tmpfs shared by every WSL distro.
+services:
+  stream:
+    volumes:
+      - /run/desktop/mnt/host/wslg:/mnt/wslg
+    environment:
+      PULSE_SERVER: unix:/mnt/wslg/PulseServer
+
+  # Docker Desktop containers cannot use Bluetooth directly: the kernel only
+  # allows AF_BLUETOOTH sockets in the VM's initial network namespace, and
+  # Docker Desktop's engine runs in a separate one (even with network_mode: host).
+  # A WSL distro does run in it. So the USB adapter is attached to WSL with
+  # usbipd-win, and BlueZ runs in a dedicated distro built from
+  # docker/bluez.Dockerfile (`make bt-setup`; `make bt-up` starts it). Its system bus
+  # also listens on /mnt/wsl/evenG2/system_bus_socket, mounted here.
+  gateway:
+    volumes:
+      - /run/desktop/mnt/host/wsl/evenG2:/var/run/dbus

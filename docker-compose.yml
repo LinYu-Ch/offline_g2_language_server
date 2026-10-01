@@ -1,8 +1,14 @@
+# Platform-neutral services. Microphone and Bluetooth passthrough differ per
+# host OS and live in docker/compose.<windows|linux|macos>.yml; the Makefile
+# picks the right one. Run through `make`, not plain `docker compose`.
 services:
   whisper:
+    image: eveng2mount/whisper
     build:
       context: ./whisper.cpp
       dockerfile: ../docker/whisper.Dockerfile
+      additional_contexts:
+        support: ./docker
     command: ["-m", "/models/${WHISPER_MODEL:-ggml-base.en.bin}"]
     ports:
       - "${WHISPER_PORT:-8080}:8080"
@@ -10,14 +16,55 @@ services:
       - ./whisper.cpp/models:/models:ro
     restart: unless-stopped
 
+  # Live microphone transcription (whisper-stream), and captions to the gateway
+  # through g2_bridge.py. Interactive; started with `make stream` or
+  # `make captions`, never by `docker compose up`.
+  stream:
+    image: eveng2mount/whisper
+    build:
+      context: ./whisper.cpp
+      dockerfile: ../docker/whisper.Dockerfile
+      additional_contexts:
+        support: ./docker
+    profiles: ["stream"]
+    entrypoint: ["stream-entrypoint"]
+    command: []
+    # tini as PID 1, signalling the whole process group, so `docker stop`
+    # reaches whisper-stream; the grace period lets it drain queued speech.
+    init: true
+    stop_grace_period: 60s
+    environment:
+      STREAM_MODEL: ${STREAM_MODEL:-ggml-base.en.bin}
+      STREAM_LANG: ${STREAM_LANG:-en}
+      STREAM_OUTPUT: ${STREAM_OUTPUT:-text}
+      GATEWAY_URL: ${GATEWAY_URL:-http://gateway:8765/api/display}
+      BRIDGE_ARGS: ${BRIDGE_ARGS:-}
+      TINI_KILL_PROCESS_GROUP: "1"
+    volumes:
+      - ./whisper.cpp/models:/models:ro
+
+  # Model downloader: `make model M=base.en` saves whisper.cpp/models/ggml-base.en.bin.
+  models:
+    image: eveng2mount/whisper
+    build:
+      context: ./whisper.cpp
+      dockerfile: ../docker/whisper.Dockerfile
+      additional_contexts:
+        support: ./docker
+    profiles: ["tools"]
+    entrypoint: ["download-ggml-model"]
+    volumes:
+      - ./whisper.cpp/models:/models
+
   gateway:
+    image: eveng2mount/gateway
     build:
       context: ./men-g2-ble-gateway
       dockerfile: ../docker/gateway.Dockerfile
+      additional_contexts:
+        support: ./docker
     ports:
       - "${GATEWAY_PORT:-8765}:8765"
     volumes:
       - ./men-g2-ble-gateway/config:/app/config
-      # Host BlueZ over D-Bus. Only functional on a Linux host.
-      - /var/run/dbus:/var/run/dbus
     restart: unless-stopped
