@@ -31,6 +31,11 @@ public:
     // get audio data from the circular buffer
     void get(int ms, std::vector<float> & audio);
 
+    // get the audio captured since the previous get_new() or clear(), so that
+    // consecutive calls tile the stream with no gaps or repeats. If the caller
+    // falls more than len_ms behind, the oldest samples are already overwritten.
+    void get_new(std::vector<float> & audio);
+
 private:
     SDL_AudioDeviceID m_dev_id_in = 0;
 
@@ -43,6 +48,9 @@ private:
     std::vector<float> m_audio;
     size_t             m_audio_pos = 0;
     size_t             m_audio_len = 0;
+
+    uint64_t           m_n_written = 0; // total samples received by callback()
+    uint64_t           m_n_read    = 0; // m_n_written as of the last get_new()
 };
 
 // Return false if need to quit

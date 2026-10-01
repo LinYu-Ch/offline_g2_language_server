@@ -64,6 +64,7 @@ struct whisper_params {
     bool    use_gpu       = true;
     bool    flash_attn    = true;
     bool    verbose       = false;
+    bool    text_out      = false;// human-readable lines instead of JSONL
 
     std::string language = "en";  // pin this; auto-detect is unreliable on short clips
     std::string model    = "models/ggml-large-v3-q5_0.bin";
@@ -85,6 +86,7 @@ static void print_usage(const whisper_params & p) {
     fprintf(stderr, "  -ntr      skip the English pass\n");
     fprintf(stderr, "  -nf       disable temperature fallback\n");
     fprintf(stderr, "  -ng       disable GPU\n");
+    fprintf(stderr, "  -txt      print readable captions instead of JSON Lines\n");
     fprintf(stderr, "  -v        verbose VAD logging to stderr\n\n");
 }
 
@@ -107,6 +109,7 @@ static bool params_parse(int argc, char ** argv, whisper_params & p) {
         else if (a == "-nf")                     { p.no_fallback= true; }
         else if (a == "-ng")                     { p.use_gpu    = false; }
         else if (a == "-v")                      { p.verbose    = true; }
+        else if (a == "-txt")                    { p.text_out   = true; }
         else {
             fprintf(stderr, "unknown argument: %s\n", a.c_str());
             print_usage(p);
@@ -351,13 +354,6 @@ static std::string json_escape(const std::string & s) {
     return o;
 }
 
-static std::string trim(const std::string & s) {
-    size_t a = s.find_first_not_of(" \t\n\r");
-    if (a == std::string::npos) return "";
-    size_t b = s.find_last_not_of(" \t\n\r");
-    return s.substr(a, b - a + 1);
-}
-
 static std::string run_pass(whisper_context * ctx,
                             const whisper_params & p,
                             const std::vector<float> & pcm,
@@ -432,11 +428,20 @@ int main(int argc, char ** argv) {
         return 2;
     }
 
-    if (!whisper_is_multilingual(ctx) && (params.translate || params.language != "en")) {
-        fprintf(stderr, "error: model is not multilingual -- translation unavailable.\n");
-        fprintf(stderr, "       use ggml-large-v3 (NOT large-v3-turbo, which cannot translate)\n");
-        whisper_free(ctx);
-        return 3;
+    if (!whisper_is_multilingual(ctx)) {
+        if (params.language != "en") {
+            fprintf(stderr, "error: model is English-only -- cannot use -l %s.\n", params.language.c_str());
+            fprintf(stderr, "       use ggml-large-v3 (NOT large-v3-turbo, which cannot translate)\n");
+            whisper_free(ctx);
+            return 3;
+        }
+        // An English-only model on English audio: the "English pass" would
+        // just repeat the transcript, so run a single transcription pass.
+        if (params.translate) {
+            fprintf(stderr, "note: English-only model, translation pass disabled\n");
+            params.translate  = false;
+            params.transcribe = true;
+        }
     }
 
     fprintf(stderr, "\n%s: lang=%s translate=%d transcribe=%d beam=%d threads=%d\n",
@@ -465,6 +470,16 @@ int main(int argc, char ** argv) {
 
             if (src.empty() && eng.empty()) continue;
 
+            if (params.text_out) {
+                const int s = (int) (u.t_start_ms / 1000);
+                const std::string & first = src.empty() ? eng : src;
+                printf("[%02d:%02d] %s\n", s / 60, s % 60, first.c_str());
+                if (!src.empty() && !eng.empty() && eng != src) {
+                    printf("        -> %s\n", eng.c_str());
+                }
+                continue;
+            }
+
             printf("{\"id\":%d,\"t\":%lld,\"dur\":%.2f,\"infer_ms\":%lld,"
                    "\"lang\":\"%s\",\"source\":\"%s\",\"english\":\"%s\"}\n",
                    u.id,
@@ -488,8 +503,6 @@ int main(int argc, char ** argv) {
     std::vector<utterance> ready;
     std::vector<float>     chunk;
 
-    auto t_prev = std::chrono::high_resolution_clock::now();
-
     fprintf(stderr, "[listening]\n");
 
     while (running.load()) {
@@ -497,15 +510,11 @@ int main(int argc, char ** argv) {
 
         std::this_thread::sleep_for(std::chrono::milliseconds(40));
 
-        const auto t_now = std::chrono::high_resolution_clock::now();
-        const int  ms    = (int) std::chrono::duration_cast<std::chrono::milliseconds>(
-                               t_now - t_prev).count();
-        if (ms < params.frame_ms) continue;
-
-        // Take exactly the elapsed span, so consecutive reads tile the
-        // timeline without gaps or duplication.
-        audio.get(ms, chunk);
-        t_prev = t_now;
+        // Take exactly the samples captured since the last read, so
+        // consecutive reads tile the timeline without gaps or duplication.
+        // (Reading the last N wall-clock ms does not: SDL delivers audio in
+        // 64 ms blocks, so fixed-length reads repeat some blocks and skip others.)
+        audio.get_new(chunk);
 
         if (chunk.empty()) continue;
 

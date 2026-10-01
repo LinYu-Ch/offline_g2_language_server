@@ -130,6 +130,7 @@ bool audio_async::clear() {
 
         m_audio_pos = 0;
         m_audio_len = 0;
+        m_n_read    = m_n_written;
     }
 
     return true;
@@ -164,6 +165,35 @@ void audio_async::callback(uint8_t * stream, int len) {
         }
         m_audio_pos = (m_audio_pos + n_samples) % m_audio.size();
         m_audio_len = std::min(m_audio_len + n_samples, m_audio.size());
+        m_n_written += n_samples;
+    }
+}
+
+void audio_async::get_new(std::vector<float> & result) {
+    result.clear();
+
+    if (!m_dev_id_in || !m_running) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    size_t n_samples = (size_t) (m_n_written - m_n_read);
+    if (n_samples > m_audio_len) {
+        n_samples = m_audio_len;
+    }
+    m_n_read = m_n_written;
+
+    result.resize(n_samples);
+
+    const size_t s0 = (m_audio_pos + m_audio.size() - n_samples) % m_audio.size();
+    if (s0 + n_samples > m_audio.size()) {
+        const size_t n0 = m_audio.size() - s0;
+
+        memcpy(result.data(), &m_audio[s0], n0 * sizeof(float));
+        memcpy(&result[n0], &m_audio[0], (n_samples - n0) * sizeof(float));
+    } else {
+        memcpy(result.data(), &m_audio[s0], n_samples * sizeof(float));
     }
 }
 
