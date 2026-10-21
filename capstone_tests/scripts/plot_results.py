@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publication-oriented plots from one timestamped extended benchmark session."""
+"""Graph results from one timestamped Base/Small benchmark session."""
 import argparse
 import csv
 import json

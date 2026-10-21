@@ -53,8 +53,6 @@ def simulate(input_path,out,pace=0.65,timeout=3.0):
     server_thread=threading.Thread(target=server.serve_forever,daemon=True)
     server_thread.start()
     bridge=Path(__file__).resolve().parents[2]/'whisper.cpp'/'g2_bridge.py'
-    # parents[2] = capstone_tests? .../extended/simulate_bridge.py parents[0]=extended,
-    # parents[1]=capstone_tests, parents[2]=repo
     if not bridge.exists():raise FileNotFoundError(bridge)
     cmd=[sys.executable,str(bridge),'--url',f'http://127.0.0.1:{server.server_port}/api/display',
          '--no-lag-drop','--max-cols','5000','--max-lines','10','--rate','0.20']

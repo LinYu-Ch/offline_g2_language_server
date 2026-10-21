@@ -5,13 +5,13 @@ import sys
 import tempfile
 import unittest
 
-HERE=Path(__file__).resolve().parents[1] / 'extended'
+HERE = Path(__file__).resolve().parents[1] / 'scripts'
 sys.path.insert(0,str(HERE))
 from accuracy_report import calculate
 from lens_latency import evaluate,summarize,percentile
 from live_stream_report import parse_stream
 from monitor_run import parse_docker_stats,parse_nvidia_stats,size_to_mib,summarise
-from plot_extended import summarize as graph_summary
+from plot_results import summarize as graph_summary
 
 class ResourceTest(unittest.TestCase):
     def test_docker_memory(self):

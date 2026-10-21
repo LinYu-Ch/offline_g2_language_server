@@ -2,7 +2,7 @@
 import pathlib
 import sys
 import unittest
-sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'scripts'))
 from benchmark import edit_distance, word_error_rate, char_error_rate, normalize_text, weighted_rtf, source_wer_for_language
 
 class MetricsTests(unittest.TestCase):

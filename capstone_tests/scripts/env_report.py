@@ -9,7 +9,7 @@ import platform
 import subprocess
 import sys
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 
 def cmd(*args):
     try:

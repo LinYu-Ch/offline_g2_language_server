@@ -1,106 +1,138 @@
-# Capstone Whisper benchmarks and integration tests
+# Whisper model tests
 
-This folder is the **team-owned testing code** for the existing `offline_g2_language_server` repository. It does not modify Whisper, its Docker images, the G2 gateway, or model weights.
+Tests and benchmarks for the capstone speech engine. These tools compare Whisper Base
+and Small on CPU and NVIDIA GPU and check the Python caption bridge without needing
+G2 glasses. Run commands from the repository root in **Windows PowerShell**.
 
-## Layout
+## Folder layout
 
-| Location | Purpose |
-|---|---|
-| `benchmark.py` | Base/Small two-pass `whisper-server` benchmark; produces a CSV for each configuration |
-| `env_report.py` | Hardware, software revision, and model SHA-256 record |
-| `scripts/run_matrix.ps1` | Backward-compatible shortcut to the maintained extended runner |
-| `scripts/smoke_test.ps1` | Check that the local Whisper server transcribes the included JFK WAV |
-| `extended/run_extended_matrix.ps1` | **Maintained** benchmark runner: CPU/GPU, timestamped sessions, resource monitoring, accuracy summaries and plots |
-| `extended/monitor_run.py` | Sample Docker CPU/RAM and NVIDIA GPU/VRAM while benchmarking |
-| `extended/accuracy_report.py` | Score real transcript and translation references (if provided) |
-| `extended/plot_extended.py` | Regenerate session graphs from recorded CSV/JSON, without rerunning inference |
-| `extended/live_stream_report.py` | Summarize real `whisper-stream` JSONL inference timings |
-| `extended/simulate_bridge.py` | Test the real bridge against a mock HTTP gateway (not BLE or physical display) |
-| `extended/lens_latency.py` | Score **manually annotated physical G2 lens** timing (hardware required) |
-| `extended/human_ratings.py` | Report independently collected human translation ratings |
-| `tests/` | **All** automated unit and simulated integration tests |
-| `extended/fixtures/` | Sample JSONL and blank worksheets/templates, not real multilingual evaluation data |
-| `extended/results/` | Timestamped local outputs, ignored by Git |
+- `scripts/` — runnable benchmarks, reporting tools, and the PowerShell launcher.
+- `tests/` — unit and simulated HTTP integration tests.
+- `fixtures/` — the JFK smoke-test manifest, examples, and blank data templates.
+- `results/` — timestamped benchmark sessions (ignored by Git).
 
-The legacy `plot_results.py`, duplicate manifests, temporary `.bak` files and bundled generated results were intentionally left out of this source-only release. Keep your existing results separately; do not delete them.
-
-## Windows quick start
-
-From the **repository root** in PowerShell, with Docker Desktop/WSL2 and GNU Make installed:
+## 1. Setup and test
 
 ```powershell
-# Install graphing and translation-metric dependencies
 python -m pip install -r .\capstone_tests\requirements.txt
-
-# Run every test from one directory (no GPU or glasses required)
 python -m unittest discover -s capstone_tests/tests -v
-
-# Prepare the multilingual Base/Small model files if missing
 make model M=base
 make model M=small
-
-# Benchmark all four configurations (CPU and NVIDIA CUDA GPU)
-powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\extended\run_extended_matrix.ps1 -Repeats 5
-
-# CPU only or GPU only
-powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\extended\run_extended_matrix.ps1 -CpuOnly -Repeats 5
-powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\extended\run_extended_matrix.ps1 -GpuOnly -Repeats 5
 ```
 
-`scripts/run_matrix.ps1` still accepts the same `-CpuOnly`, `-GpuOnly`, `-Repeats`, `-Warmups`, `-BeamSize`, and `-Manifest` options but now delegates to `extended/run_extended_matrix.ps1`. It no longer creates the old flat `results/` and `graphs/` directories. One maintained runner avoids two conflicting benchmark workflows.
+The unit suite includes one **expected failure** for the known issue where
+`g2_bridge.py` can exit before flushing its final, rate-limited caption.
+That behavior belongs to the bridge itself; the test suite does not change it.
 
-The runner uses `/health` to wait for the model, and only transient **warm-up** HTTP requests are retried. Measured requests fail visibly rather than being silently discarded.
-
-## Where results go
-
-Every run is stored in its own folder:
-
-```text
-capstone_tests/extended/results/YYYYMMDD_HHMMSS/
-    environment.json
-    manifest_used.csv
-    base_cpu/base_cpu_trials.csv
-    base_cpu/resource_samples.csv
-    base_cpu/resource_summary.json
-    base_cpu/benchmark_stdout.log
-    base_cpu/benchmark_stderr.log
-    ... corresponding folders for other selected configurations ...
-    accuracy_by_sample.csv
-    accuracy_summary.csv
-    performance_summary.csv
-    graphs/
-```
-
-Regenerate figures **without** running Whisper again:
+To check the HTTP server independently, start `make whisper WHISPER_MODEL=ggml-base.bin`
+and run the smoke test in another PowerShell window:
 
 ```powershell
-python .\capstone_tests\extended\accuracy_report.py --run .\capstone_tests\extended\results\YOUR_TIMESTAMP
-python .\capstone_tests\extended\plot_extended.py --run .\capstone_tests\extended\results\YOUR_TIMESTAMP
+powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\scripts\smoke_test.ps1
 ```
 
-These generated folders are excluded by `.gitignore` because transcripts, dataset records and human annotations may contain sensitive material. Back up and share approved results intentionally, separately from the source-code pull request.
+## 2. CPU/GPU benchmarks
 
-## Interpreting the metrics correctly
+```powershell
+# All four configurations, five measured runs per recording
+powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\scripts\run_matrix.ps1 -Repeats 5
 
-- **HTTP latency** is two sequential server request/response times (audio upload + possible queuing + inference + response). **It is not speech-end-to-lens latency.**
-- **HTTP RTF** is the two-pass round-trip seconds divided by audio seconds. Below 1 means faster-than-real-time processing for that test clip, not proof of real-time captions.
-- **Docker CPU percentage** can exceed 100% when more than one CPU core is active. Container RAM is not the same as total system RAM.
-- **GPU utilization and VRAM** come from *device-wide* `nvidia-smi` snapshots. A short GPU inference often yields only one or two samples; they are not precise per-process peaks. The default plotting routine omits the GPU-utilization chart unless all GPU configurations have at least three GPU samples.
-- **WER/CER** require a checked source-language transcript. **BLEU/chrF** require verified English reference translations. With only the included English JFK smoke clip, there is **no multilingual translation-quality result**.
-- **End-to-end physical G2 latency** requires audio/video timestamps from actual lens observations; a mock HTTP response is not evidence that the lenses displayed a caption.
-- Percentiles from 3–5 repetitions are descriptive, not robust tail-latency estimates. Repeat varied recordings and document hardware and power settings before drawing final conclusions.
+# Optional: only CPU or only NVIDIA CUDA GPU
+powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\scripts\run_matrix.ps1 -CpuOnly -Repeats 5
+powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\scripts\run_matrix.ps1 -GpuOnly -Repeats 5
+```
 
-## Known test outcome
+The script starts the Whisper HTTP server, waits for `/health`, warms it up,
+and requests both transcription and English output. Each session is saved under
+`capstone_tests/results/YYYYMMDD_HHMMSS/` with raw trials, sampled hardware
+usage, metadata, accuracy summaries, and Matplotlib graphs.
 
-The bridge integration suite includes `test_known_issue_final_caption_must_flush_on_eof` as an **expected failure**. The current bridge can exit before delivering a rate-limited final caption. Do not remove the test or report it as a fixed bug until the implementation is corrected and the test passes without `@expectedFailure`.
+**What is measured:** two sequential HTTP round trips, including request
+handling and Whisper inference. These figures are **not** speech-end-to-lens
+latency. RTF is request time divided by audio duration. The Docker CPU/RAM
+and NVIDIA GPU/VRAM readings are periodic snapshots, not precise hardware peaks;
+NVIDIA figures are device-wide. A short GPU run may have very few samples.
 
-## Advanced evaluations
+### Interpreting the JFK dataset
 
-See [`extended/README.md`](extended/README.md) for multilingual data format, live VAD JSONL analysis, simulated gateway testing, human translation ratings, and physical lens timing annotations.
+`fixtures/manifest_smoke.csv` points to an 11-second **English** recording in
+whisper.cpp. It is useful for testing the setup and comparing throughput.
+It does **not** evaluate foreign-language translation accuracy. With only a
+few repeats, P95 is also a preliminary descriptive estimate.
 
-## Preparing a pull request
+## 3. Multilingual recordings and human ratings
 
-1. Run `python -m unittest discover -s capstone_tests/tests -v`.
-2. Review `git status` and `git diff --check`; do not stage model weights, unapproved real recordings, personal text, caches or generated results.
-3. Stage only source, tests, templates and documentation (`git add capstone_tests`).
-4. Mention the expected-failure regression and hardware-latency limitations in the pull-request description.
+Create a local manifest from `fixtures/manifest_multilingual_template.csv`:
+
+```powershell
+Copy-Item .\capstone_tests\fixtures\manifest_multilingual_template.csv .\capstone_tests\fixtures\manifest_multilingual.csv
+notepad .\capstone_tests\fixtures\manifest_multilingual.csv
+```
+
+Required CSV fields: `sample_id,audio_file,language,reference_source,reference_english`.
+The audio path is relative to the repository root. Use 16-kHz mono 16-bit PCM
+WAV recordings with independently checked source transcripts and English
+translations. Empty references must remain empty—not dummy values.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\capstone_tests\scripts\run_matrix.ps1 -Manifest capstone_tests/fixtures/manifest_multilingual.csv -Repeats 5
+```
+
+`accuracy_report.py` scores one unique recording per model/backend, instead
+of treating repeated requests as independent audio samples. It reports source
+WER/CER when applicable and BLEU/chrF only when English references exist.
+Languages without ordinary word separators use CER without naive whitespace WER.
+Those scores still need human evaluation of meaning and critical errors.
+
+Optional human review: copy `fixtures/human_translation_ratings_template.csv`,
+fill it with actual ratings, and run:
+
+```powershell
+python .\capstone_tests\scripts\human_ratings.py --ratings .\your_ratings.csv --out-dir .\capstone_tests\results\human_review
+```
+
+## 4. Live stream and display-path tests
+
+**Live microphone inference:**
+
+```powershell
+make mic-check
+make stream GPU=1 STREAM_MODEL=ggml-small.bin STREAM_LANG=es STREAM_OUTPUT=json | Tee-Object -FilePath .\live_small_gpu.jsonl
+# Stop with Ctrl+C; then analyze the saved JSONL:
+python .\capstone_tests\scripts\live_stream_report.py --jsonl .\live_small_gpu.jsonl --out-dir .\capstone_tests\results\live_small_gpu
+```
+
+This measures `whisper-stream` inference time, not VAD hang time or lens delay.
+
+**Simulated G2 gateway:**
+
+```powershell
+python .\capstone_tests\scripts\simulate_bridge.py --jsonl .\capstone_tests\fixtures\mock_stream_example.jsonl --out-dir .\capstone_tests\results\mock_example
+```
+
+This exercises the actual Python bridge and a local mock HTTP server.
+It measures JSONL-injection-to-HTTP-receipt time, **not** microphone/audio
+inference, Bluetooth transfer, or physical caption appearance.
+
+**Physical G2 latency (requires glasses):** Record the end of each spoken
+utterance and the first visible caption using a shared audio/video clock.
+Copy `fixtures/lens_annotations_template.csv`, fill its trial timestamps, then run:
+
+```powershell
+python .\capstone_tests\scripts\lens_latency.py --annotations .\your_lens_annotations.csv --out-dir .\capstone_tests\results\physical_g2
+```
+
+The resulting median/P95 lens times and 2.5-second reference line are based
+on **observed** display appearance, not HTTP acknowledgement. Use enough
+independent observations before making tail-latency claims.
+
+## 5. Rebuild graphs from a saved session
+
+```powershell
+python .\capstone_tests\scripts\accuracy_report.py --run .\capstone_tests\results\YYYYMMDD_HHMMSS
+python .\capstone_tests\scripts\plot_results.py --run .\capstone_tests\results\YYYYMMDD_HHMMSS
+```
+
+Existing session CSVs remain compatible; no model inference is needed to
+regenerate the figures. Generated results are ignored by Git, so back them up
+separately before replacing or resetting a local working folder.

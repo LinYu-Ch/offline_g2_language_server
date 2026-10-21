@@ -1,18 +1,14 @@
-# Benchmarks, captions, logs and generated graphics can contain user audio/text.
-results/
-graphs/
-archive/
-extended/results/*
-!extended/results/.gitkeep
+# Generated measurements and graphs stay local.
+results/*
+!results/.gitkeep
+
+# Real recordings and review sheets are not part of this test harness.
 fixtures/recordings/
-extended/fixtures/recordings/
+fixtures/manifest_multilingual.csv
+fixtures/human_translation_ratings.csv
+fixtures/lens_annotations.csv
 
-# Real dataset/reviewer/physical-observation sheets are local until approved.
-extended/fixtures/manifest_multilingual.csv
-extended/fixtures/human_translation_ratings.csv
-extended/fixtures/lens_annotations.csv
-
-# Python and accidental local backups.
+# Python caches, environments, and temporary backups.
 __pycache__/
 *.py[cod]
 .venv/

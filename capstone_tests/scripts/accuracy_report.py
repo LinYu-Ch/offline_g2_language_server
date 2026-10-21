@@ -11,10 +11,7 @@ from collections import Counter, defaultdict
 import csv
 import json
 from pathlib import Path
-import sys
 
-HERE=Path(__file__).resolve().parent
-sys.path.insert(0,str(HERE.parent))
 from benchmark import word_error_rate, char_error_rate, WORDLESS_LANGUAGES
 
 ORDER=[('base','cpu'),('base','gpu'),('small','cpu'),('small','gpu')]
@@ -36,7 +33,7 @@ def calculate(rows, use_sacrebleu=True):
     except ImportError:
         sacrebleu=None
     if use_sacrebleu and sacrebleu is None:
-        raise RuntimeError('sacrebleu is required. Run: python -m pip install -r capstone_tests/extended/requirements.txt')
+        raise RuntimeError('sacrebleu is required. Run: python -m pip install -r capstone_tests/requirements.txt')
     grouped=defaultdict(list)
     for row in rows:
         if not all(k in row for k in ['sample_id','model','backend','language','source_prediction','english_prediction']):
@@ -96,7 +93,7 @@ def write_csv(path,rows):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--run',required=True,help='One extended/results/<timestamp> folder')
+    ap.add_argument('--run',required=True,help='One results/<timestamp> folder')
     ap.add_argument('--no-sacrebleu',action='store_true',help='Source CER/WER only')
     a=ap.parse_args()
     run=Path(a.run)
