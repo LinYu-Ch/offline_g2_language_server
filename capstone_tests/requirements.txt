@@ -1,0 +1,3 @@
+# Graph generation and multilingual text-reference metrics.
+matplotlib>=3.9,<4
+sacrebleu>=2.4,<3

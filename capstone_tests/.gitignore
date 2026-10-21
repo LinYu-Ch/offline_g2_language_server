@@ -1,0 +1,20 @@
+# Benchmarks, captions, logs and generated graphics can contain user audio/text.
+results/
+graphs/
+archive/
+extended/results/*
+!extended/results/.gitkeep
+fixtures/recordings/
+extended/fixtures/recordings/
+
+# Real dataset/reviewer/physical-observation sheets are local until approved.
+extended/fixtures/manifest_multilingual.csv
+extended/fixtures/human_translation_ratings.csv
+extended/fixtures/lens_annotations.csv
+
+# Python and accidental local backups.
+__pycache__/
+*.py[cod]
+.venv/
+*.bak
+*.bak.*
