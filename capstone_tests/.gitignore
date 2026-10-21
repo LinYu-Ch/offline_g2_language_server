@@ -1,0 +1,16 @@
+# Generated measurements and graphs stay local.
+results/*
+!results/.gitkeep
+
+# Real recordings and review sheets are not part of this test harness.
+fixtures/recordings/
+fixtures/manifest_multilingual.csv
+fixtures/human_translation_ratings.csv
+fixtures/lens_annotations.csv
+
+# Python caches, environments, and temporary backups.
+__pycache__/
+*.py[cod]
+.venv/
+*.bak
+*.bak.*

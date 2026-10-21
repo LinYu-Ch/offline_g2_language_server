@@ -1,0 +1,7 @@
+# Keep text files consistent across Windows and Linux.
+*.py    text eol=lf
+*.ps1   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.csv   text eol=lf
+*.jsonl text eol=lf

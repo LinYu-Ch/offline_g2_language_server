@@ -1,0 +1,2 @@
+sample_id,audio_file,language,reference_source,reference_english
+jfk_en,whisper.cpp/bindings/go/samples/jfk.wav,en,"And so my fellow Americans ask not what your country can do for you ask what you can do for your country",
